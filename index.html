@@ -14,6 +14,13 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
+
         :root {
             --bg-primary: #0a0e27;
             --bg-secondary: #141b3a;
@@ -34,8 +41,12 @@
             overflow-x: hidden;
         }
 
+        html.presentation-active,
         body.presentation-active {
             background: #000000;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
         }
 
         .container {
@@ -53,6 +64,9 @@
             max-width: none;
             padding: 0;
             margin: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000000;
         }
 
         .container.presenter-fullscreen .header {
@@ -93,6 +107,14 @@
 
         .setup-screen, .presentation-screen {
             animation: fadeIn 0.5s ease;
+        }
+
+        .presentation-screen.presenter-fullscreen {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000000;
         }
 
         @keyframes fadeIn {
@@ -279,6 +301,7 @@
         .presentation-container.presenter-mode {
             gap: 0;
             height: 100vh;
+            width: 100vw;
             position: fixed;
             top: 0;
             left: 0;
@@ -286,6 +309,7 @@
             bottom: 0;
             padding: 0;
             margin: 0;
+            background: #000000;
         }
 
         .presentation-container.presenter-mode .slide-viewer {
@@ -293,11 +317,17 @@
             border-radius: 0;
             padding: 0;
             height: 100vh;
+            width: 100vw;
+            margin: 0;
+            background: #000000;
         }
 
         .presentation-container.presenter-mode .slide-viewer iframe {
             height: 100vh;
+            width: 100vw;
             border-radius: 0;
+            margin: 0;
+            padding: 0;
         }
 
         .slide-viewer {
@@ -715,13 +745,16 @@
             if (state.role === 'presenter') {
                 slideViewer.classList.add('presenter-view');
                 presentationContainer.classList.add('presenter-mode');
+                presentationScreen.classList.add('presenter-fullscreen');
                 container.classList.add('presenter-fullscreen');
+                document.documentElement.classList.add('presentation-active');
                 document.body.classList.add('presentation-active');
                 adminControls.style.display = 'none';
                 
                 // Запуск синхронизации для докладчика
                 state.syncInterval = setInterval(syncSlides, 200); // Проверка каждые 200мс
             } else {
+                document.documentElement.classList.add('presentation-active');
                 document.body.classList.add('presentation-active');
                 adminControls.style.display = 'flex';
             }
@@ -746,7 +779,9 @@
                 // Сброс состояния
                 slideViewer.classList.remove('presenter-view');
                 presentationContainer.classList.remove('presenter-mode');
+                presentationScreen.classList.remove('presenter-fullscreen');
                 container.classList.remove('presenter-fullscreen');
+                document.documentElement.classList.remove('presentation-active');
                 document.body.classList.remove('presentation-active');
                 adminControls.style.display = 'flex';
                 adminRole.classList.remove('selected');
