@@ -53,6 +53,10 @@
             background: #000000 !important;
         }
 
+        html.presentation-active body.presenter-mode {
+            background: #000000 !important;
+        }
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -347,12 +351,17 @@
             padding: 0;
         }
 
+        .presentation-container.presenter-mode .slide-viewer {
+            background: #000000 !important;
+        }
+
         .slide-viewer iframe {
             width: 100%;
             height: 70vh;
             border: none;
             border-radius: 8px;
             background: #000000;
+            pointer-events: none; /* Блокируем клики по презентации */
         }
 
         .presentation-container.admin-mode .slide-viewer iframe {
@@ -368,6 +377,13 @@
         .presenter-view iframe {
             transform: scaleX(-1);
             filter: invert(1) hue-rotate(180deg);
+            background: #000000 !important;
+        }
+        
+        .presenter-view,
+        .presenter-mode,
+        .presenter-fullscreen {
+            background: #000000 !important;
         }
 
         .controls {
@@ -499,7 +515,7 @@
                     <div class="role-icon">🎤</div>
                     <div class="role-title">Докладчик</div>
                     <div class="role-description">
-                        Просмотр презентации. Зеркальное отражение и инверсия цветов для суфлёра. Автоматическая синхронизация с админом.
+                        Просмотр презентации. Зеркальное отражение с инверсией цветов для суфлёра на чёрном фоне. Автоматическая синхронизация с админом.
                     </div>
                 </div>
             </div>
@@ -746,19 +762,7 @@
         document.addEventListener('keydown', (e) => {
             if (presentationScreen.classList.contains('hidden')) return;
             
-            if (state.role === 'admin') {
-                if (e.key === 'ArrowRight' || e.key === ' ') {
-                    e.preventDefault();
-                    console.log('⌨️ Клавиша:', e.key);
-                    nextSlide();
-                } else if (e.key === 'ArrowLeft') {
-                    e.preventDefault();
-                    console.log('⌨️ Клавиша:', e.key);
-                    prevSlide();
-                }
-            }
-            
-            // Escape для выхода
+            // Только Escape для выхода - переключение слайдов только по кнопкам на экране
             if (e.key === 'Escape') {
                 exitBtn.click();
             }
