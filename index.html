@@ -49,6 +49,10 @@
             overflow: hidden;
         }
 
+        body.presenter-mode {
+            background: #000000 !important;
+        }
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -292,6 +296,7 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 1.5rem;
+            height: 100%;
         }
 
         .presentation-active .presentation-container {
@@ -312,6 +317,11 @@
             background: #000000;
         }
 
+        .presentation-container.admin-mode {
+            gap: 1rem;
+            padding: 1rem;
+        }
+
         .presentation-container.presenter-mode .slide-viewer {
             border: none;
             border-radius: 0;
@@ -320,14 +330,6 @@
             width: 100vw;
             margin: 0;
             background: #000000;
-        }
-
-        .presentation-container.presenter-mode .slide-viewer iframe {
-            height: 100vh;
-            width: 100vw;
-            border-radius: 0;
-            margin: 0;
-            padding: 0;
         }
 
         .slide-viewer {
@@ -353,9 +355,14 @@
             background: #000000;
         }
 
-        .presentation-active .slide-viewer iframe {
+        .presentation-container.admin-mode .slide-viewer iframe {
+            height: 70vh;
+        }
+
+        .presentation-container.presenter-mode .slide-viewer iframe {
+            height: 100vh;
+            width: 100vw;
             border-radius: 0;
-            height: calc(100vh - 100px);
         }
 
         .presenter-view iframe {
@@ -376,30 +383,26 @@
         }
 
         .presentation-active .controls {
-            background: #000000;
-            border-color: #1a1a1a;
-        }
-
-        .slide-counter {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.2rem;
-            color: var(--accent-primary);
-            font-weight: 700;
+            background: #0a0e27;
+            border-color: #2a3454;
         }
 
         .navigation {
             display: flex;
             gap: 1rem;
+            flex: 1;
+            justify-content: center;
         }
 
         .nav-btn {
-            padding: 0.8rem 1.5rem;
+            padding: 1rem 2rem;
             background: var(--bg-secondary);
             border: 2px solid var(--border-color);
             border-radius: 10px;
             color: var(--text-primary);
             font-family: 'Orbitron', sans-serif;
             font-weight: 600;
+            font-size: 1rem;
             cursor: pointer;
             transition: all 0.3s ease;
         }
@@ -474,9 +477,13 @@
             <div class="info-box">
                 <div class="info-title">Как использовать:</div>
                 <div class="info-text">
-                    1. Выберите роль: Админ управляет слайдами, Докладчик видит зеркальное отображение<br>
-                    2. Админ вставляет ссылку на Google Презентацию и запускает<br>
-                    3. Докладчик подключается к той же сессии (автоматически получает презентацию)
+                    <strong>Важно! Сначала опубликуйте презентацию:</strong><br>
+                    1. Откройте презентацию в Google Slides<br>
+                    2. Файл → Поделиться → Опубликовать в интернете<br>
+                    3. Выберите вкладку «Встроить» и скопируйте ссылку<br><br>
+                    <strong>Затем:</strong><br>
+                    4. Админ вставляет ссылку и ID сессии<br>
+                    5. Докладчик вводит тот же ID сессии (презентация синхронизируется автоматически)
                 </div>
             </div>
 
@@ -492,7 +499,7 @@
                     <div class="role-icon">🎤</div>
                     <div class="role-title">Докладчик</div>
                     <div class="role-description">
-                        Просмотр презентации. Зеркальное отражение и инверсия цветов для суфлёра.
+                        Просмотр презентации. Зеркальное отражение и инверсия цветов для суфлёра. Автоматическая синхронизация с админом.
                     </div>
                 </div>
             </div>
@@ -509,12 +516,12 @@
             </div>
 
             <div class="input-group" id="urlInputGroup">
-                <label class="input-label">Ссылка на Google Презентацию</label>
+                <label class="input-label">Ссылка на Google Презентацию (опубликованная для встраивания)</label>
                 <input 
                     type="text" 
                     id="presentationUrl" 
                     class="input-field" 
-                    placeholder="https://docs.google.com/presentation/d/..."
+                    placeholder="https://docs.google.com/presentation/d/.../embed или /edit"
                 >
             </div>
 
@@ -539,11 +546,11 @@
 
                 <div class="controls" id="adminControls">
                     <div class="navigation">
-                        <button class="nav-btn" id="prevBtn">◀</button>
-                        <button class="nav-btn" id="nextBtn">▶</button>
+                        <button class="nav-btn" id="prevBtn">◀ Назад</button>
+                        <button class="nav-btn" id="nextBtn">Вперёд ▶</button>
                     </div>
 
-                    <button class="btn btn-danger" id="exitBtn">Выход</button>
+                    <button class="btn btn-danger" id="exitBtn">ВЫХОД</button>
                 </div>
             </div>
         </div>
@@ -552,11 +559,10 @@
     <script>
         // Состояние приложения
         let state = {
-            role: null, // 'admin' или 'presenter'
+            role: null,
             sessionId: null,
             presentationId: null,
             currentSlide: 1,
-            totalSlides: 999, // Большое число, чтобы всегда можно было листать вперед
             syncInterval: null
         };
 
@@ -604,26 +610,41 @@
             }
         }
 
-        // Извлечение ID презентации из URL
+        // Извлечение ID презентации из разных форматов URL
         function extractPresentationId(url) {
-            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-            return match ? match[1] : null;
+            // Формат 1: обычная ссылка на презентацию
+            // https://docs.google.com/presentation/d/PRESENTATION_ID/edit
+            let match = url.match(/\/presentation\/d\/([a-zA-Z0-9-_]+)/);
+            if (match) return match[1];
+            
+            // Формат 2: опубликованная ссылка для встраивания
+            // https://docs.google.com/presentation/d/e/2PACX-.../embed
+            match = url.match(/\/presentation\/d\/e\/([a-zA-Z0-9-_]+)/);
+            if (match) return 'e/' + match[1];
+            
+            return null;
         }
 
-        // Создание URL для встраивания слайда
+        // Создание URL для встраивания с конкретным слайдом
         function createSlideUrl(presentationId, slideNumber) {
-            return `https://docs.google.com/presentation/d/${presentationId}/embed?start=false&loop=false&rm=minimal&slide=id.p${slideNumber}`;
+            // Создаём правильный URL для встраивания
+            const baseUrl = `https://docs.google.com/presentation/d/${presentationId}/embed`;
+            // start - начать с нужного слайда (нумерация с 0)
+            const params = `?start=false&loop=false&delayms=60000&rm=minimal&slide=${slideNumber - 1}`;
+            
+            return baseUrl + params;
         }
 
         // Сохранение состояния в localStorage
         function saveState() {
             const key = `teleprompter_${state.sessionId}`;
-            localStorage.setItem(key, JSON.stringify({
+            const data = {
                 currentSlide: state.currentSlide,
-                totalSlides: state.totalSlides,
                 presentationId: state.presentationId,
                 timestamp: Date.now()
-            }));
+            };
+            localStorage.setItem(key, JSON.stringify(data));
+            console.log('💾 Сохранено:', data);
         }
 
         // Загрузка состояния из localStorage
@@ -631,29 +652,56 @@
             const key = `teleprompter_${state.sessionId}`;
             const saved = localStorage.getItem(key);
             if (saved) {
-                const data = JSON.parse(saved);
-                return data;
+                try {
+                    const data = JSON.parse(saved);
+                    console.log('📥 Загружено:', data);
+                    return data;
+                } catch (e) {
+                    console.error('❌ Ошибка парсинга:', e);
+                }
             }
             return null;
         }
 
-        // Синхронизация слайдов
+        // Синхронизация слайдов для докладчика
         function syncSlides() {
-            if (state.role === 'presenter') {
-                const savedState = loadState();
-                if (savedState && savedState.currentSlide !== state.currentSlide) {
-                    state.currentSlide = savedState.currentSlide;
-                    updateSlideDisplay();
-                }
+            if (state.role !== 'presenter') return;
+            
+            const savedState = loadState();
+            if (!savedState) return;
+            
+            let needsUpdate = false;
+            
+            // Проверяем, изменился ли ID презентации
+            if (savedState.presentationId && savedState.presentationId !== state.presentationId) {
+                state.presentationId = savedState.presentationId;
+                console.log('🔄 Обновлён ID презентации');
+                needsUpdate = true;
+            }
+            
+            // Проверяем, изменился ли слайд
+            if (savedState.currentSlide && savedState.currentSlide !== state.currentSlide) {
+                console.log(`🔄 Синхронизация: ${state.currentSlide} → ${savedState.currentSlide}`);
+                state.currentSlide = savedState.currentSlide;
+                needsUpdate = true;
+            }
+            
+            if (needsUpdate) {
+                updateSlideDisplay();
             }
         }
 
         // Обновление отображения слайда
         function updateSlideDisplay() {
+            if (!state.presentationId) return;
+            
             const url = createSlideUrl(state.presentationId, state.currentSlide);
+            console.log('🎬 Загрузка слайда', state.currentSlide, ':', url);
+            
+            // Обновляем iframe
             slideFrame.src = url;
             
-            // Обновление состояния кнопок для админа
+            // Обновление кнопок для админа
             if (state.role === 'admin') {
                 prevBtn.disabled = state.currentSlide <= 1;
             }
@@ -661,23 +709,38 @@
 
         // Переход к следующему слайду
         function nextSlide() {
+            if (state.role !== 'admin') return;
+            
             state.currentSlide++;
+            console.log('➡️ Следующий слайд:', state.currentSlide);
             updateSlideDisplay();
             saveState();
         }
 
         // Переход к предыдущему слайду
         function prevSlide() {
+            if (state.role !== 'admin') return;
+            
             if (state.currentSlide > 1) {
                 state.currentSlide--;
+                console.log('⬅️ Предыдущий слайд:', state.currentSlide);
                 updateSlideDisplay();
                 saveState();
             }
         }
 
         // Обработчики событий для кнопок навигации
-        nextBtn.addEventListener('click', nextSlide);
-        prevBtn.addEventListener('click', prevSlide);
+        nextBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('🖱️ Клик по кнопке Вперёд');
+            nextSlide();
+        });
+
+        prevBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('🖱️ Клик по кнопке Назад');
+            prevSlide();
+        });
 
         // Клавиатурные сокращения
         document.addEventListener('keydown', (e) => {
@@ -686,14 +749,16 @@
             if (state.role === 'admin') {
                 if (e.key === 'ArrowRight' || e.key === ' ') {
                     e.preventDefault();
+                    console.log('⌨️ Клавиша:', e.key);
                     nextSlide();
                 } else if (e.key === 'ArrowLeft') {
                     e.preventDefault();
+                    console.log('⌨️ Клавиша:', e.key);
                     prevSlide();
                 }
             }
             
-            // Escape для выхода (работает для обеих ролей)
+            // Escape для выхода
             if (e.key === 'Escape') {
                 exitBtn.click();
             }
@@ -708,8 +773,6 @@
 
             state.sessionId = sessionIdInput.value.trim() || 'default-session';
 
-            let presentationId = null;
-
             if (state.role === 'admin') {
                 // Админ вводит URL
                 const url = presentationUrlInput.value.trim();
@@ -718,42 +781,55 @@
                     return;
                 }
 
-                presentationId = extractPresentationId(url);
+                if (!url.includes('docs.google.com/presentation')) {
+                    alert('Неверная ссылка на презентацию. Используйте ссылку Google Презентации.');
+                    return;
+                }
+
+                const presentationId = extractPresentationId(url);
                 if (!presentationId) {
-                    alert('Неверная ссылка на презентацию. Используйте ссылку вида:\nhttps://docs.google.com/presentation/d/ID/edit');
+                    alert('Не удалось извлечь ID презентации из ссылки.\n\nПопробуйте:\n1. Файл → Поделиться → Опубликовать в интернете\n2. Вкладка "Встроить"\n3. Скопируйте ссылку для встраивания');
                     return;
                 }
 
                 state.presentationId = presentationId;
+                state.currentSlide = 1;
                 
-                // Сохранение для синхронизации с докладчиком
+                console.log('✅ Админ запускает презентацию, ID:', presentationId);
                 saveState();
             } else {
-                // Докладчик получает URL от админа
+                // Докладчик получает ID от админа
                 const savedState = loadState();
                 if (!savedState || !savedState.presentationId) {
-                    alert('Презентация ещё не запущена админом.\nУбедитесь, что:\n1. Вы используете тот же ID сессии\n2. Админ уже запустил презентацию');
+                    alert('Презентация ещё не запущена админом.\n\nУбедитесь, что:\n1. Вы используете тот же ID сессии\n2. Админ уже запустил презентацию');
                     return;
                 }
 
-                presentationId = savedState.presentationId;
-                state.presentationId = presentationId;
-                state.currentSlide = savedState.currentSlide;
+                state.presentationId = savedState.presentationId;
+                state.currentSlide = savedState.currentSlide || 1;
+                
+                console.log('✅ Докладчик подключается к презентации, ID:', state.presentationId);
             }
 
             // Настройка интерфейса в зависимости от роли
             if (state.role === 'presenter') {
+                // Режим докладчика - полноэкранный чёрный фон
                 slideViewer.classList.add('presenter-view');
                 presentationContainer.classList.add('presenter-mode');
                 presentationScreen.classList.add('presenter-fullscreen');
                 container.classList.add('presenter-fullscreen');
                 document.documentElement.classList.add('presentation-active');
-                document.body.classList.add('presentation-active');
+                document.body.classList.add('presentation-active', 'presenter-mode');
                 adminControls.style.display = 'none';
                 
-                // Запуск синхронизации для докладчика
-                state.syncInterval = setInterval(syncSlides, 200); // Проверка каждые 200мс
+                // Запуск синхронизации каждые 50мс
+                state.syncInterval = setInterval(syncSlides, 50);
+                
+                // Также проверяем сразу
+                syncSlides();
             } else {
+                // Режим админа
+                presentationContainer.classList.add('admin-mode');
                 document.documentElement.classList.add('presentation-active');
                 document.body.classList.add('presentation-active');
                 adminControls.style.display = 'flex';
@@ -778,25 +854,29 @@
                 
                 // Сброс состояния
                 slideViewer.classList.remove('presenter-view');
-                presentationContainer.classList.remove('presenter-mode');
+                presentationContainer.classList.remove('presenter-mode', 'admin-mode');
                 presentationScreen.classList.remove('presenter-fullscreen');
                 container.classList.remove('presenter-fullscreen');
                 document.documentElement.classList.remove('presentation-active');
-                document.body.classList.remove('presentation-active');
+                document.body.classList.remove('presentation-active', 'presenter-mode');
                 adminControls.style.display = 'flex';
                 adminRole.classList.remove('selected');
                 presenterRole.classList.remove('selected');
                 
                 state.role = null;
+                state.currentSlide = 1;
             }
         });
 
-        // Слушатель изменений в localStorage для синхронизации между вкладками
+        // Слушатель изменений в localStorage
         window.addEventListener('storage', (e) => {
             if (e.key && e.key.startsWith('teleprompter_') && state.role === 'presenter') {
+                console.log('📡 Storage event detected');
                 syncSlides();
             }
         });
+        
+        console.log('🎯 Суфлёр загружен');
     </script>
 </body>
 </html>
