@@ -34,10 +34,29 @@
             overflow-x: hidden;
         }
 
+        body.presentation-active {
+            background: #000000;
+        }
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
+        }
+
+        body.presentation-active .container {
+            padding: 0;
+            max-width: none;
+        }
+
+        .container.presenter-fullscreen {
+            max-width: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container.presenter-fullscreen .header {
+            display: none;
         }
 
         .header {
@@ -253,6 +272,34 @@
             gap: 1.5rem;
         }
 
+        .presentation-active .presentation-container {
+            gap: 0;
+        }
+
+        .presentation-container.presenter-mode {
+            gap: 0;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 0;
+            margin: 0;
+        }
+
+        .presentation-container.presenter-mode .slide-viewer {
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            height: 100vh;
+        }
+
+        .presentation-container.presenter-mode .slide-viewer iframe {
+            height: 100vh;
+            border-radius: 0;
+        }
+
         .slide-viewer {
             background: var(--bg-tertiary);
             border: 2px solid var(--border-color);
@@ -262,11 +309,23 @@
             overflow: hidden;
         }
 
+        .presentation-active .slide-viewer {
+            background: #000000;
+            border: none;
+            padding: 0;
+        }
+
         .slide-viewer iframe {
             width: 100%;
             height: 70vh;
             border: none;
             border-radius: 8px;
+            background: #000000;
+        }
+
+        .presentation-active .slide-viewer iframe {
+            border-radius: 0;
+            height: calc(100vh - 100px);
         }
 
         .presenter-view iframe {
@@ -284,6 +343,11 @@
             align-items: center;
             flex-wrap: wrap;
             gap: 1rem;
+        }
+
+        .presentation-active .controls {
+            background: #000000;
+            border-color: #1a1a1a;
         }
 
         .slide-counter {
@@ -319,36 +383,6 @@
         .nav-btn:disabled {
             opacity: 0.3;
             cursor: not-allowed;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background: var(--bg-secondary);
-            border-radius: 20px;
-            font-size: 0.85rem;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        .status-dot.admin {
-            background: var(--accent-primary);
-        }
-
-        .status-dot.presenter {
-            background: var(--accent-secondary);
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
         }
 
         .hidden {
@@ -391,6 +425,10 @@
 
             .slide-viewer iframe {
                 height: 50vh;
+            }
+
+            .presentation-container.presenter-mode .slide-viewer iframe {
+                height: 100vh;
             }
         }
     </style>
@@ -469,19 +507,10 @@
                     <iframe id="slideFrame" allowfullscreen></iframe>
                 </div>
 
-                <div class="controls">
-                    <div class="status-indicator">
-                        <div class="status-dot" id="statusDot"></div>
-                        <span id="roleStatus"></span>
-                    </div>
-
-                    <div class="slide-counter">
-                        Слайд: <span id="currentSlide">1</span>
-                    </div>
-
-                    <div class="navigation" id="navigationControls">
-                        <button class="nav-btn" id="prevBtn">◀ Назад</button>
-                        <button class="nav-btn" id="nextBtn">Вперёд ▶</button>
+                <div class="controls" id="adminControls">
+                    <div class="navigation">
+                        <button class="nav-btn" id="prevBtn">◀</button>
+                        <button class="nav-btn" id="nextBtn">▶</button>
                     </div>
 
                     <button class="btn btn-danger" id="exitBtn">Выход</button>
@@ -511,15 +540,14 @@
         const startBtn = document.getElementById('startBtn');
         const slideFrame = document.getElementById('slideFrame');
         const slideViewer = document.getElementById('slideViewer');
-        const currentSlideSpan = document.getElementById('currentSlide');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const exitBtn = document.getElementById('exitBtn');
-        const statusDot = document.getElementById('statusDot');
-        const roleStatus = document.getElementById('roleStatus');
-        const navigationControls = document.getElementById('navigationControls');
         const urlInputGroup = document.getElementById('urlInputGroup');
         const presenterInfo = document.getElementById('presenterInfo');
+        const presentationContainer = document.querySelector('.presentation-container');
+        const adminControls = document.getElementById('adminControls');
+        const container = document.querySelector('.container');
 
         // Выбор роли
         adminRole.addEventListener('click', () => {
@@ -592,7 +620,6 @@
 
         // Обновление отображения слайда
         function updateSlideDisplay() {
-            currentSlideSpan.textContent = state.currentSlide;
             const url = createSlideUrl(state.presentationId, state.currentSlide);
             slideFrame.src = url;
             
@@ -624,7 +651,9 @@
 
         // Клавиатурные сокращения
         document.addEventListener('keydown', (e) => {
-            if (state.role === 'admin' && presentationScreen.classList.contains('hidden') === false) {
+            if (presentationScreen.classList.contains('hidden')) return;
+            
+            if (state.role === 'admin') {
                 if (e.key === 'ArrowRight' || e.key === ' ') {
                     e.preventDefault();
                     nextSlide();
@@ -632,6 +661,11 @@
                     e.preventDefault();
                     prevSlide();
                 }
+            }
+            
+            // Escape для выхода (работает для обеих ролей)
+            if (e.key === 'Escape') {
+                exitBtn.click();
             }
         });
 
@@ -680,15 +714,16 @@
             // Настройка интерфейса в зависимости от роли
             if (state.role === 'presenter') {
                 slideViewer.classList.add('presenter-view');
-                navigationControls.style.display = 'none';
-                statusDot.classList.add('presenter');
-                roleStatus.textContent = 'Докладчик';
+                presentationContainer.classList.add('presenter-mode');
+                container.classList.add('presenter-fullscreen');
+                document.body.classList.add('presentation-active');
+                adminControls.style.display = 'none';
                 
                 // Запуск синхронизации для докладчика
                 state.syncInterval = setInterval(syncSlides, 200); // Проверка каждые 200мс
             } else {
-                statusDot.classList.add('admin');
-                roleStatus.textContent = 'Админ';
+                document.body.classList.add('presentation-active');
+                adminControls.style.display = 'flex';
             }
 
             // Отображение презентации
@@ -710,8 +745,10 @@
                 
                 // Сброс состояния
                 slideViewer.classList.remove('presenter-view');
-                navigationControls.style.display = 'flex';
-                statusDot.classList.remove('admin', 'presenter');
+                presentationContainer.classList.remove('presenter-mode');
+                container.classList.remove('presenter-fullscreen');
+                document.body.classList.remove('presentation-active');
+                adminControls.style.display = 'flex';
                 adminRole.classList.remove('selected');
                 presenterRole.classList.remove('selected');
                 
