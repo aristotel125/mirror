@@ -130,6 +130,78 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        .content-type-selector {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .content-type-card {
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem 3rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .content-type-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent, rgba(0, 255, 136, 0.1));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .content-type-card:hover::before {
+            opacity: 1;
+        }
+
+        .content-type-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.2);
+        }
+
+        .content-type-card.selected {
+            border-color: var(--accent-primary);
+            background: linear-gradient(135deg, var(--bg-tertiary), rgba(0, 255, 136, 0.1));
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+        }
+
+        .content-type-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .content-type-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-secondary);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+        }
+
         .role-selector {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -411,10 +483,15 @@
             height: 100%;
         }
 
+        /* Зеркальное отображение для докладчика */
         .presenter-view iframe {
             transform: scaleX(-1);
-            filter: invert(1) hue-rotate(180deg);
             background: #000000 !important;
+        }
+
+        /* Инверсия цветов только для режима "Уроки" */
+        .presenter-view.lessons-mode iframe {
+            filter: invert(1) hue-rotate(180deg);
         }
         
         .presenter-view,
@@ -534,6 +611,10 @@
                 grid-template-columns: 1fr;
             }
 
+            .content-type-selector {
+                flex-direction: column;
+            }
+
             .controls {
                 flex-direction: column;
             }
@@ -568,11 +649,25 @@
                     2. Файл → Поделиться → Опубликовать в интернете<br>
                     3. Выберите вкладку «Встроить» и скопируйте ссылку<br><br>
                     <strong>Затем:</strong><br>
-                    4. Админ вставляет ссылку и ID сессии<br>
-                    5. Докладчик вводит тот же ID сессии (презентация синхронизируется автоматически)
+                    4. Выберите тип контента и роль<br>
+                    5. Админ вставляет ссылку и ID сессии<br>
+                    6. Докладчик вводит тот же ID сессии (презентация синхронизируется автоматически)
                 </div>
             </div>
 
+            <div class="section-title">Что снимаем?</div>
+            <div class="content-type-selector">
+                <div class="content-type-card" id="lessonsType">
+                    <div class="content-type-icon">📚</div>
+                    <div class="content-type-title">Уроки</div>
+                </div>
+                <div class="content-type-card" id="reelsType">
+                    <div class="content-type-icon">🎬</div>
+                    <div class="content-type-title">Рилсы</div>
+                </div>
+            </div>
+
+            <div class="section-title">Выберите роль</div>
             <div class="role-selector">
                 <div class="role-card" id="adminRole">
                     <div class="role-icon">👨‍💼</div>
@@ -585,7 +680,7 @@
                     <div class="role-icon">🎤</div>
                     <div class="role-title">Докладчик</div>
                     <div class="role-description">
-                        Просмотр презентации. Зеркальное отображение с инверсией цветов для суфлёра на чёрном фоне. Автоматическая синхронизация с админом.
+                        Просмотр презентации. Зеркальное отображение для суфлёра на чёрном фоне. Автоматическая синхронизация с админом.
                     </div>
                 </div>
             </div>
@@ -650,6 +745,7 @@
     <script>
         // Состояние приложения
         let state = {
+            contentType: null, // 'lessons' или 'reels'
             role: null,
             sessionId: null,
             presentationId: null,
@@ -657,12 +753,14 @@
             syncInterval: null,
             isFirstLoad: true,
             isTransitioning: false,
-            preloadedSlide: null  // Номер предзагруженного слайда (обычно следующий)
+            preloadedSlide: null
         };
 
         // Элементы DOM
         const setupScreen = document.getElementById('setupScreen');
         const presentationScreen = document.getElementById('presentationScreen');
+        const lessonsType = document.getElementById('lessonsType');
+        const reelsType = document.getElementById('reelsType');
         const adminRole = document.getElementById('adminRole');
         const presenterRole = document.getElementById('presenterRole');
         const sessionIdInput = document.getElementById('sessionId');
@@ -693,6 +791,29 @@
             console.log('   activeFrame:', activeFrame.id, '- классы:', activeFrame.className);
             console.log('   inactiveFrame:', inactiveFrame.id, '- классы:', inactiveFrame.className);
             console.log('   preloadFrame:', preloadFrame.id, '- классы:', preloadFrame.className);
+        }
+
+        // Выбор типа контента
+        lessonsType.addEventListener('click', () => {
+            selectContentType('lessons');
+        });
+
+        reelsType.addEventListener('click', () => {
+            selectContentType('reels');
+        });
+
+        function selectContentType(type) {
+            state.contentType = type;
+            lessonsType.classList.remove('selected');
+            reelsType.classList.remove('selected');
+            
+            if (type === 'lessons') {
+                lessonsType.classList.add('selected');
+                console.log('📚 Выбран режим: Уроки (с инверсией цветов)');
+            } else {
+                reelsType.classList.add('selected');
+                console.log('🎬 Выбран режим: Рилсы (без инверсии цветов)');
+            }
         }
 
         // Выбор роли
@@ -746,6 +867,7 @@
             const data = {
                 currentSlide: state.currentSlide,
                 presentationId: state.presentationId,
+                contentType: state.contentType,
                 timestamp: Date.now()
             };
             try {
@@ -830,6 +952,18 @@
                 state.presentationId = savedState.presentationId;
                 console.log('🔄 Обновлён ID презентации');
                 needsUpdate = true;
+            }
+
+            // Проверяем, изменился ли тип контента
+            if (savedState.contentType && savedState.contentType !== state.contentType) {
+                state.contentType = savedState.contentType;
+                console.log('🔄 Обновлён тип контента:', state.contentType);
+                // Применяем или убираем класс инверсии
+                if (state.contentType === 'lessons') {
+                    slideViewer.classList.add('lessons-mode');
+                } else {
+                    slideViewer.classList.remove('lessons-mode');
+                }
             }
             
             // Проверяем, изменился ли слайд
@@ -1039,6 +1173,11 @@
 
         // Запуск презентации
         startBtn.addEventListener('click', () => {
+            if (!state.contentType) {
+                alert('Выберите тип контента: Уроки или Рилсы');
+                return;
+            }
+
             if (!state.role) {
                 alert('Выберите роль: Админ или Докладчик');
                 return;
@@ -1071,6 +1210,7 @@
                 state.preloadedSlide = null;
                 
                 console.log('✅ Админ запускает презентацию, ID:', presentationId);
+                console.log('   Тип контента:', state.contentType);
                 saveState();
             } else {
                 const savedState = loadState();
@@ -1081,16 +1221,27 @@
 
                 state.presentationId = savedState.presentationId;
                 state.currentSlide = savedState.currentSlide || 1;
+                state.contentType = savedState.contentType || state.contentType;
                 state.isFirstLoad = true;
                 state.isTransitioning = false;
                 state.preloadedSlide = null;
                 
                 console.log('✅ Докладчик подключается к презентации, ID:', state.presentationId);
+                console.log('   Тип контента:', state.contentType);
             }
 
             // Настройка интерфейса в зависимости от роли
             if (state.role === 'presenter') {
                 slideViewer.classList.add('presenter-view');
+                
+                // Применяем класс инверсии только для режима "Уроки"
+                if (state.contentType === 'lessons') {
+                    slideViewer.classList.add('lessons-mode');
+                    console.log('📚 Применена инверсия цветов (режим Уроки)');
+                } else {
+                    console.log('🎬 Инверсия цветов отключена (режим Рилсы)');
+                }
+                
                 presentationContainer.classList.add('presenter-mode');
                 presentationScreen.classList.add('presenter-fullscreen');
                 container.classList.add('presenter-fullscreen');
@@ -1098,7 +1249,7 @@
                 document.body.classList.add('presentation-active', 'presenter-mode');
                 adminControls.style.display = 'none';
                 
-                // Синхронизация каждые 200мс (было 50мс)
+                // Синхронизация каждые 200мс
                 state.syncInterval = setInterval(syncSlides, 200);
                 syncSlides();
             } else {
@@ -1123,7 +1274,7 @@
                 presentationScreen.classList.add('hidden');
                 setupScreen.classList.remove('hidden');
                 
-                slideViewer.classList.remove('presenter-view');
+                slideViewer.classList.remove('presenter-view', 'lessons-mode');
                 presentationContainer.classList.remove('presenter-mode', 'admin-mode');
                 presentationScreen.classList.remove('presenter-fullscreen');
                 container.classList.remove('presenter-fullscreen');
@@ -1132,6 +1283,8 @@
                 adminControls.style.display = 'flex';
                 adminRole.classList.remove('selected');
                 presenterRole.classList.remove('selected');
+                lessonsType.classList.remove('selected');
+                reelsType.classList.remove('selected');
                 
                 // Очистка iframe
                 slideFrame1.src = '';
@@ -1156,6 +1309,7 @@
                 
                 hideLoading();
                 
+                state.contentType = null;
                 state.role = null;
                 state.currentSlide = 1;
                 state.isFirstLoad = true;
@@ -1172,12 +1326,13 @@
             }
         });
         
-        console.log('🎯 Суфлёр загружен и улучшен');
-        console.log('✨ Новые возможности:');
-        console.log('   • Обработчик onload для надёжной загрузки');
-        console.log('   • Предзагрузка следующего слайда в фоне');
-        console.log('   • Мгновенное переключение на предзагруженные слайды');
-        console.log('   • Индикатор загрузки');
+        console.log('🎯 Суфлёр загружен с выбором типа контента');
+        console.log('✨ Возможности:');
+        console.log('   • Выбор режима: Уроки (с инверсией) или Рилсы (без инверсии)');
+        console.log('   • Зеркальное отображение для докладчика');
+        console.log('   • Предзагрузка следующего слайда');
+        console.log('   • Мгновенное переключение');
+        console.log('   • Автосинхронизация между устройствами');
     </script>
 </body>
 </html>
